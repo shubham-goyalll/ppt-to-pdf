@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+uploads/
+pdfs/
+*.pyc
+.env
+.git
+.gitignore
+*.md
