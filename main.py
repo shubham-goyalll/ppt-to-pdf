@@ -34,9 +34,11 @@ app.add_middleware(
 
 UPLOAD_DIR = "uploads"
 PDF_DIR = "pdfs"
+LO_PROFILE_DIR = "/tmp/libreoffice_profile"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PDF_DIR, exist_ok=True)
+os.makedirs(LO_PROFILE_DIR, exist_ok=True)
 
 
 # --- Core Conversion Logic (LibreOffice) ---
@@ -48,23 +50,32 @@ def convert_ppt_to_pdf(input_path: str, output_dir: str) -> str:
     abs_input = os.path.abspath(input_path)
     abs_output_dir = os.path.abspath(output_dir)
 
+    env = os.environ.copy()
+    env["HOME"] = "/tmp"  # Ensure writable HOME for LibreOffice
+
     result = subprocess.run(
         [
             "libreoffice",
             "--headless",
             "--norestore",
+            "--nofirststartwizard",
+            f"-env:UserInstallation=file://{LO_PROFILE_DIR}",
             "--convert-to", "pdf",
             "--outdir", abs_output_dir,
             abs_input,
         ],
         capture_output=True,
         text=True,
-        timeout=120,  # 2 minute timeout per file
+        timeout=120,
+        env=env,
     )
 
+    print(f"[DEBUG] LibreOffice stdout: {result.stdout}")
+    print(f"[DEBUG] LibreOffice stderr: {result.stderr}")
+    print(f"[DEBUG] LibreOffice returncode: {result.returncode}")
+
     if result.returncode != 0:
-        print(f"[ERROR] LibreOffice stderr: {result.stderr}")
-        raise RuntimeError(f"LibreOffice conversion failed: {result.stderr}")
+        raise RuntimeError(f"LibreOffice conversion failed (code {result.returncode}): {result.stderr}")
 
     # LibreOffice names the output file based on the input filename
     input_basename = os.path.splitext(os.path.basename(abs_input))[0]
@@ -111,10 +122,8 @@ async def upload_and_convert(file: UploadFile = File(...)):
             "download_url": f"/api/download/{final_pdf_name}?name={target_pdf_name}",
         }
     except Exception as e:
-        error_msg = str(e)
-        if "libreoffice" in error_msg.lower():
-            error_msg = "Conversion engine error. Please try again."
-        raise HTTPException(status_code=500, detail=error_msg)
+        print(f"[ERROR] Conversion exception: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/download/{filename}")

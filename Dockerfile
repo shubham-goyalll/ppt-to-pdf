@@ -23,7 +23,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create directories for uploads and PDFs
-RUN mkdir -p uploads pdfs
+RUN mkdir -p uploads pdfs /tmp/libreoffice_profile
+
+# Set HOME to writable location for LibreOffice
+ENV HOME=/tmp
 
 # Expose port
 EXPOSE 10000
